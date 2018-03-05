@@ -54,7 +54,11 @@ clean_text <- function(text, lower=T, alphanum=T, drop_num=T){
 c_remove_words =  function (x, words) {
       gsub(sprintf("(*UCP)\\b(%s)\\b", paste(sort(words, decreasing = TRUE), 
                                            collapse = "|")), "", x, perl = TRUE) }
-  
+
+
+#--------------------------------------------------------------#
+# 4 - Replacing bi grams
+#--------------------------------------------------------------#  
 replace_ngram <- function(text, 
                           bi_gram_pct = 0.05,
                           min_freq = 5, 
@@ -244,7 +248,7 @@ replace_ngram <- function(text,
   return(cleaned_corpus)   }    # func ends  
 
 #---------------------------------------------------------------------#
-# 4 - Create DTM
+# 5 - Create DTM
 #---------------------------------------------------------------------#
 
 create_DTM = function(text, 
@@ -322,7 +326,7 @@ create_DTM = function(text,
 }
 
 #--------------------------------------------------------#
-#   
+# Examples  
 #--------------------------------------------------------#
 
 
