@@ -1,3 +1,5 @@
+source('https://raw.githubusercontent.com/aashishkpandey/tidytextapp/master/tidytextapp_functions.R')
+
 #--------------------------------------------------------#
 #   Create DTM of BD
 #--------------------------------------------------------#
