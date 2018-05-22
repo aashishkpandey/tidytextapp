@@ -37,6 +37,7 @@ py.sent_tokenize = function(text) {
 
 clean_text <- function(text, lower=T, alphanum=T, drop_num=T){
   text  =  str_replace_all(text, "<.*?>", " ")   # drop html junk
+  text  =  iconv(text, "latin1", "ASCII", sub="") # Keep only ASCII characters
   
   if (lower=="TRUE") {text = text %>% str_to_lower()}
   if (alphanum=="TRUE") {text = text %>% str_replace_all("[^[:alnum:]]", " ")}
