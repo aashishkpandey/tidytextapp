@@ -72,16 +72,16 @@ replace_ngram <- function(text,
                           rm_stop_words=T,
                           stop_custom = c('will','was','can'),
                           smart_stop_words = T
-                          ){
-
+){
+  text = text[nchar(text) > 1]
   text_orig = text
   # Cleaning text
   if( textcleaning == T) {
-  text = clean_text(text,lower = lower, alphanum = alphanum, drop_num = drop_num)
+    text = clean_text(text,lower = lower, alphanum = alphanum, drop_num = drop_num)
   }
   
   # defining smart stop words
-  smart_stop = c("i","me","my","myself","we","our","ours","ourselves","you","your","yours","yourself","yourselves","he","him","his","himself","she","her","hers","herself",
+  smart_stop = c("na","NA","i","me","my","myself","we","our","ours","ourselves","you","your","yours","yourself","yourselves","he","him","his","himself","she","her","hers","herself",
                  "it","its","itself","they","them","their","theirs","themselves","what","which","who","whom","this","that","these","those","am","is","are","was","were","be",
                  "been","being","have","has","had","having","do","does","did","doing","would","should","could","ought","i'm","you're","he's","she's","it's","we're","they're",
                  "i've","you've","we've","they've","i'd","you'd","he'd","she'd","we'd","they'd","i'll","you'll","he'll","she'll","we'll","they'll","isn't","aren't","wasn't",
@@ -114,49 +114,71 @@ replace_ngram <- function(text,
                  "whenever","whereafter","whereas","whereby","wherein","whereupon","wherever","whether","whither","whoever","whole","whose","will","willing","wish","within","without",
                  "wonder","x","y","yes","yet","z")
   
+  docdf = data_frame(text = text, docID = 1:length(text))
   # removing stopwords
   
   if (rm_stop_words == T) {
     if(smart_stop_words == T){
       stop = unique(tolower(c(stop_custom,smart_stop)))
+      stop.words = data_frame(word = stop)	
     } else {
       stop = unique(tolower(stop_custom))
+      stop.words = data_frame(word = stop)	
     }
-    text = c_remove_words(text,stop)
   }
-  
-  
-  textdf = data_frame(text = text, docID = 1:length(text))
-  
-  # Build All possible bigram list
-  bigram_df_orig = textdf %>% group_by(docID) %>% unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+    
+    textdf = docdf %>% unnest_tokens(word, text) %>% anti_join(stop.words)
+    nostopdf = data.frame(docID = numeric(), text = character(), stringsAsFactors=FALSE) # define empty df to populate
+    
+    for (i1 in 1:nrow(docdf)){
+      a100 = textdf[textdf$docID == i1,]   # for each doc, collect all cleaned tokens
+      
+      if (nrow(a100) == 0){
+        nostopdf[i1, 1] =  i1
+        nostopdf[i1, 2] = "NA_BLANK"
+      } else {
+        nostopdf[i1, 1] =  i1
+        nostopdf[i1, 2] = str_c(a100$word, collapse=" ")   # using str_c()
+      }
+      
+      if (i1 %% 100 == 0) {cat(i1, " docs processed\n")}   # counter for docs processed. Run '?%%'
+    }
+          
+    # Build All possible bigram list
+  bigram_df_orig = nostopdf %>% group_by(docID) %>% unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
     separate(bigram, c("word1", "word2"), sep = " ") %>% 
     unite(bigram1, word1, word2, sep = " ", remove = FALSE) %>%
     ungroup()
   
   if (py.sent_tknzr == T) {
-  # now first split corpus in sentences to get the vaalid bi-grams
-  sentdf = py.sent_tokenize(text_orig)
-  if( textcleaning == T) {
+    # now first split corpus in sentences to get the vaalid bi-grams
+    sentdf = py.sent_tokenize(text_orig)
     sentdf$text = clean_text(sentdf$text,lower = lower, alphanum = alphanum, drop_num = drop_num)
-  }
-  
-  if (rm_stop_words == T) {
-    if(smart_stop_words == T){
-      stop = unique(tolower(c(stop_custom,smart_stop)))
-    } else {
-      stop = unique(tolower(stop_custom))
+    
+    textdf1 = sentdf %>% unnest_tokens(word, text) %>% anti_join(stop.words)
+    nostopdf = data.frame(docID = numeric(), text = character(), stringsAsFactors=FALSE) # define empty df to populate
+    
+    for (i1 in 1:nrow(docdf)){
+      a100 = textdf1[textdf$docID == i1,]   # for each doc, collect all cleaned tokens
+      
+      if (nrow(a100) == 0){
+        nostopdf[i1, 1] =  i1
+        nostopdf[i1, 2] = "NA_BLANK"
+      } else {
+        nostopdf[i1, 1] =  i1
+        nostopdf[i1, 2] = str_c(a100$word, collapse=" ")   # using str_c()
+      }
+      
+      if (i1 %% 100 == 0) {cat(i1, " docs processed\n")}   # counter for docs processed. Run '?%%'
     }
-    sentdf$text = c_remove_words(sentdf$text,stop)
-  }
-  
-  
+    
+    
   } else {
-    sentdf = data_frame(text = text, docID = 1:length(text), sentID = 1:length(text))
-    }
+    print('No Python senence tokenizer invoked')
+  }
   
   # get the valid bi-grams based on sentence level corpus for replacement
-  bigram_df <- sentdf %>% unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  bigram_df <- nostopdf %>% unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
     separate(bigram, c("word1", "word2"), sep = " ") %>%
     count(word1, word2, sort = T) %>%
     filter(n >= 2) %>%     # valid bi-grams
@@ -164,9 +186,9 @@ replace_ngram <- function(text,
     unite(bigram2, word1, word2, sep = "_")
   
   # if (filter = 'pct') {
-    bigram_df1 = bigram_df[1:round(nrow(bigram_df)*bi_gram_pct),]  
+  bigram_df1 = bigram_df[1:round(nrow(bigram_df)*bi_gram_pct),]  
   # } else {
-    bigram_df2 = bigram_df %>% filter(n >= min_freq)
+  bigram_df2 = bigram_df %>% filter(n >= min_freq)
   # }
   
   # Print counts of bi-grams
@@ -181,6 +203,7 @@ replace_ngram <- function(text,
   
   # merge the two bi-grams set
   merged_df1 <- left_join(bigram_df_orig, bigram_df, by=c("bigram1"="bigram1"))
+  
   
   # first, replace NAs with word1
   a0 = (is.na(merged_df1$bigram2))
@@ -203,36 +226,36 @@ replace_ngram <- function(text,
     
     if (docID[i] == docID[i+1]){
       
-    if (grepl("_",bigram2[i]) & grepl("_",bigram2[i+1]) ) {
-      if (nvec[i] >= nvec[i+1]){ 
+      if (grepl("_",bigram2[i]) & grepl("_",bigram2[i+1]) ) {
+        if (nvec[i] >= nvec[i+1]){ 
+          bigram2[i+1] = ""
+        } else { bigram2[i] = word1[i]} 
+      }
+      
+      if (grepl("_",bigram2[i])){
         bigram2[i+1] = ""
-          } else { bigram2[i] = word1[i]} 
-    }
-    
-    if (grepl("_",bigram2[i])){
-      bigram2[i+1] = ""
-    }    
+      }    
       
     } else if (!(docID[i] == docID[i+1]) ) {
       if (grepl("_",bigram2[i-1])) {
         bigram2[i] = word2[i]
-        } else if (!grepl("_",bigram2[i])) {
+      } else if (!grepl("_",bigram2[i])) {
         bigram2[i] = bigram1[i]
-                                                  }
-                                        }
-          i = i + 1  
+      }
+    }
+    i = i + 1  
   }
   if (!grepl("_",bigram2[i])) {bigram2[i] = bigram1[i]}
-    
-      # })
-
+  
+  # })
+  
   merged_df1$bigram2 = bigram2
-
+  
   # Now, finally, roll-back the tokens into a doc string
   cleaned_corpus = data.frame(docID = numeric(), text = character(), stringsAsFactors=FALSE) # define empty df to populate
   tokens_only = merged_df1 %>% select(docID, bigram2)
   
-  for (i1 in 1:nrow(textdf)){
+  for (i1 in 1:nrow(nostopdf)){
     a100 = tokens_only[tokens_only$docID == i1,]   # for each doc, collect all cleaned tokens
     
     if (nrow(a100) == 0){
@@ -247,6 +270,7 @@ replace_ngram <- function(text,
   } # i1 loop ends
   
   return(cleaned_corpus)   }    # func ends  
+
 
 #---------------------------------------------------------------------#
 # 5 - Create DTM
